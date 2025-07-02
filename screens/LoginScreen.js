@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
 
 export default function LoginScreen({ navigation }) {
-  const [usuario, setUsuario] = useState('');
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
 
@@ -21,7 +20,8 @@ export default function LoginScreen({ navigation }) {
       
       if (response.ok) {
         console.log('Login exitoso:', data);
-        // Aquí puedes navegar a la pantalla principal o guardar el token
+        // Navegar a la pantalla Home y pasar los datos del usuario
+        navigation.navigate('Home', { userData: data });
       } else {
         console.log('Error:', data.message);
         alert(data.message);
@@ -39,15 +39,10 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.title}>Iniciar Sesión</Text>
         <TextInput
           style={styles.input}
-          placeholder="Usuario"
-          value={usuario}
-          onChangeText={setUsuario}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Correo"
+          placeholder="Correo o usuario"
           value={correo}
           onChangeText={setCorreo}
+          autoCapitalize="none"
         />
         <TextInput
           style={styles.input}

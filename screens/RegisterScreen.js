@@ -4,21 +4,44 @@ import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'reac
 
 export default function RegisterScreen({ navigation }) {
   const [usuario, setUsuario] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (password !== confirmPassword) {
       alert('Las contraseñas no coinciden');
       return;
     }
-    // Aquí va la lógica para registrar en el backend
-    console.log('Registro:', usuario, password);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: usuario, email, password }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log('Registro exitoso:', data);
+        // Navegar a la pantalla Home y pasar los datos del usuario
+        navigation.navigate('Home', { userData: data });
+      } else {
+        console.log('Error:', data.message);
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error('Error de red:', error);
+      alert('Error de conexión al servidor');
+    }
   };
 
   return (
     <View style={styles.container}>
-     <Image source={require('../assets/clima.jpg')} style={styles.image} />
+      <Image source={require('../assets/clima.jpg')} style={styles.image} />
       <View style={styles.card}>
         <Text style={styles.title}>Registro</Text>
         <TextInput
@@ -26,6 +49,14 @@ export default function RegisterScreen({ navigation }) {
           placeholder="Usuario"
           value={usuario}
           onChangeText={setUsuario}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Correo electrónico"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
         <TextInput
           style={styles.input}
