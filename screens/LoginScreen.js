@@ -1,34 +1,76 @@
 import { set } from 'mongoose';
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
+import { API_ENDPOINTS } from '../config';
 
 export default function LoginScreen({ navigation }) {
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({});
+
+  // Función para validar el formulario
+  const validateForm = () => {
+    let isValid = true;
+    let errors = {};
+
+    if (!correo.trim()) {
+      errors.correo = 'El usuario o correo es requerido';
+      isValid = false;
+    }
+
+    if (!password) {
+      errors.password = 'La contraseña es requerida';
+      isValid = false;
+    }
+
+    setErrors(errors);
+    return isValid;
+  };
 
   const handleLogin = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     try {
-      const response = await fetch('http://localhost:5000/api/users/login', {
+      console.log('Iniciando solicitud de login...');
+      const response = await fetch(API_ENDPOINTS.login, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username: correo, password }),
       });
-
+  
+      console.log('Respuesta recibida:', response.status, response.statusText);
+      
       const data = await response.json();
+      console.log('Datos recibidos:', data);
       
       if (response.ok) {
         console.log('Login exitoso:', data);
         // Navegar a la pantalla Home y pasar los datos del usuario
         navigation.navigate('Home', { userData: data });
       } else {
-        console.log('Error:', data.message);
-        alert(data.message);
+        console.log('Error en respuesta:', data.message);
+        // Usar Alert con un timeout para asegurar que se muestre
+        setTimeout(() => {
+          Alert.alert(
+            'Credenciales incorrectas', 
+            data.message || 'Usuario o contraseña incorrectos',
+            [{ text: 'Intentar de nuevo', style: 'default' }]
+          );
+        }, 100);
       }
     } catch (error) {
-      console.error('Error de red:', error);
-      alert('Error de conexión al servidor');
+      console.error('Error completo:', error);
+      setTimeout(() => {
+        Alert.alert(
+          'Error de conexión', 
+          'No se pudo conectar con el servidor. Verifica tu conexión a internet.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }, 100);
     }
   };
 
@@ -38,19 +80,23 @@ export default function LoginScreen({ navigation }) {
       <View style={styles.card}>
         <Text style={styles.title}>Iniciar Sesión</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.correo && styles.inputError]}
           placeholder="Correo o usuario"
           value={correo}
           onChangeText={setCorreo}
           autoCapitalize="none"
         />
+        {errors.correo && <Text style={styles.errorText}>{errors.correo}</Text>}
+        
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.password && styles.inputError]}
           placeholder="Contraseña"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
         />
+        {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+        
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
           <Text style={styles.link}>¿No tienes cuenta? ¡Regístrate!</Text>
         </TouchableOpacity>
@@ -96,6 +142,14 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 10,
   },
+  inputError: {
+    borderColor: '#FF3B30',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 5,
+  },
   button: {
     backgroundColor: '#1E40AF',
     padding: 15,
@@ -112,4 +166,4 @@ const styles = StyleSheet.create({
     color: '#1E40AF',
     textAlign: 'center',
   },
-});66
+});
