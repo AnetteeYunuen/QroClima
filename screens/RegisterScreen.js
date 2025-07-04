@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { API_ENDPOINTS } from '../config';
+// Importamos los íconos necesarios
+import { Ionicons } from '@expo/vector-icons';
 
 export default function RegisterScreen({ navigation }) {
   const [usuario, setUsuario] = useState('');
@@ -10,6 +12,9 @@ export default function RegisterScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(0); // 0: débil, 1: media, 2: fuerte
   const [errors, setErrors] = useState({});
+  // Nuevos estados para controlar la visibilidad de las contraseñas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Evaluar la fortaleza de la contraseña cuando cambia
   useEffect(() => {
@@ -155,13 +160,25 @@ export default function RegisterScreen({ navigation }) {
         />
         {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
         
-        <TextInput
-          style={[styles.input, errors.password && styles.inputError]}
-          placeholder="Contraseña"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, errors.password && styles.inputError]}
+            placeholder="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity 
+            style={styles.passwordVisibilityBtn}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons 
+              name={showPassword ? 'eye-off' : 'eye'} 
+              size={24} 
+              color="#666" 
+            />
+          </TouchableOpacity>
+        </View>
         {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         
         {password.length > 0 && (
@@ -180,13 +197,25 @@ export default function RegisterScreen({ navigation }) {
           </View>
         )}
         
-        <TextInput
-          style={[styles.input, errors.confirmPassword && styles.inputError]}
-          placeholder="Confirmar Contraseña"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, errors.confirmPassword && styles.inputError]}
+            placeholder="Confirmar Contraseña"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!showConfirmPassword}
+          />
+          <TouchableOpacity 
+            style={styles.passwordVisibilityBtn}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Ionicons 
+              name={showConfirmPassword ? 'eye-off' : 'eye'} 
+              size={24} 
+              color="#666" 
+            />
+          </TouchableOpacity>
+        </View>
         {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
         
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -275,5 +304,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#1E40AF',
     textAlign: 'center',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    marginTop: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 10,
+  },
+  passwordVisibilityBtn: {
+    position: 'absolute',
+    right: 12,
+    height: '100%',
+    justifyContent: 'center',
   },
 });

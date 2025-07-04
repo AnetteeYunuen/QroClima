@@ -2,11 +2,15 @@ import { set } from 'mongoose';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { API_ENDPOINTS } from '../config';
+// Importamos los íconos necesarios
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen({ navigation }) {
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
+  // Nuevo estado para controlar la visibilidad de la contraseña
+  const [showPassword, setShowPassword] = useState(false);
 
   // Función para validar el formulario
   const validateForm = () => {
@@ -88,13 +92,25 @@ export default function LoginScreen({ navigation }) {
         />
         {errors.correo && <Text style={styles.errorText}>{errors.correo}</Text>}
         
-        <TextInput
-          style={[styles.input, errors.password && styles.inputError]}
-          placeholder="Contraseña"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, errors.password && styles.inputError]}
+            placeholder="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity 
+            style={styles.passwordVisibilityBtn}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons 
+              name={showPassword ? 'eye-off' : 'eye'} 
+              size={24} 
+              color="#666" 
+            />
+          </TouchableOpacity>
+        </View>
         {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
@@ -165,5 +181,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#1E40AF',
     textAlign: 'center',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+    marginTop: 10,
+  },
+  passwordInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 10,
+  },
+  passwordVisibilityBtn: {
+    position: 'absolute',
+    right: 12,
+    height: '100%',
+    justifyContent: 'center',
   },
 });
