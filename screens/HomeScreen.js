@@ -1,21 +1,165 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Modal, Alert, Linking } from 'react-native';
+import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
+import { API_ENDPOINTS } from '../config';
+
+const riskTypes = [
+  { id: 'inundacion_leve', label: 'Inundación leve' },
+  { id: 'inundacion_severa', label: 'Inundación severa' },
+  { id: 'lluvia_intensa', label: 'Lluvia intensa' },
+  { id: 'accidente', label: 'Accidente' },
+];
 
 export default function HomeScreen({ navigation, route }) {
   const userData = route.params?.userData || { username: 'Usuario' };
   const [zona, setZona] = useState('');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedRisk, setSelectedRisk] = useState(null);
+
+  const getLocation = async () => {
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso requerido', 
+          'Por favor activa los permisos de ubicación en ajustes para poder reportar',
+          [
+            { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+            { text: 'Cancelar', style: 'cancel' }
+          ]
+        );
+        return null;
+      }
+      
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeout: 15000,
+      });
+      
+      return location.coords;
+      
+    } catch (error) {
+      Alert.alert(
+        'Error de ubicación',
+        `No se pudo obtener tu ubicación. Razón: ${error.message || 'desconocida'}`,
+        [{ text: 'Reintentar', onPress: async () => await getLocation() }]
+      );
+      return null;
+    }
+  };
+  
+  const handleReport = async () => {
+    if (!selectedRisk) {
+      Alert.alert('Error', 'Por favor selecciona un tipo de riesgo');
+      return;
+    }
+  
+    try {
+      const coords = await getLocation();
+      if (!coords) return;
+      
+      const reportData = {
+        userId: userData._id,
+        location: `${coords.latitude},${coords.longitude}`,
+        riskType: selectedRisk.id,
+        description: ''
+      };
+      
+      const response = await fetch(API_ENDPOINTS.reports, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al enviar reporte');
+      }
+      
+      setModalVisible(false); // Cierra el modal antes de mostrar la alerta
+      Alert.alert(
+        'Reporte exitoso', 
+        `Se ha registrado ${selectedRisk.label} en tu ubicación`,
+        [{ text: 'OK' }]
+      );
+      
+    } catch (error) {
+      Alert.alert(
+        'Error', 
+        error.message.includes('Failed to fetch') 
+          ? 'No se pudo conectar al servidor. Verifica tu conexión a internet.'
+          : error.message,
+        [
+          { text: 'Reintentar', onPress: handleReport },
+          { text: 'Verificar Servidor', onPress: () => Linking.openURL(API_ENDPOINTS.reports.split('/api')[0]) }
+        ]
+      );
+    }
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Hola, {userData.username}</Text>
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={() => navigation.navigate('Login')}
-        >
-          <Text style={styles.logoutText}>Cerrar sesión</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.reportButton}
+            onPress={() => setModalVisible(true)}
+          >
+            <Ionicons name="warning" size={16} color="white" />
+            <Text style={styles.reportButtonText}>Reportar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.logoutText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Reportar problema</Text>
+            
+            {riskTypes.map((risk) => (
+              <TouchableOpacity
+                key={risk.id}
+                style={[
+                  styles.riskOption,
+                  selectedRisk?.id === risk.id && styles.selectedRisk
+                ]}
+                onPress={() => setSelectedRisk(risk)}
+              >
+                <Text style={styles.riskText}>{risk.label}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.buttonCancel]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.buttonCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.buttonSubmit]}
+                onPress={handleReport}
+              >
+                <Text style={styles.textStyle}>Enviar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView style={styles.content}>
         <Image source={require('../assets/Mapa.png')} style={styles.bannerImage} />
@@ -61,13 +205,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  welcomeText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  welcomeText: { 
+    color: 'white', 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EF4444',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  reportButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginLeft: 5,
+    fontSize: 14,
+  },
   logoutButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     padding: 8,
     borderRadius: 5,
   },
-  logoutText: { color: 'white' },
+  logoutText: { 
+    color: 'white',
+    fontSize: 14,
+  },
   content: { flex: 1 },
   bannerImage: {
     width: '100%',
@@ -83,7 +258,13 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     elevation: 3,
   },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+  sectionTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    marginBottom: 10,
+    marginLeft: 15,
+    marginTop: 10,
+  },
   input: {
     backgroundColor: '#f0f0f0',
     padding: 12,
@@ -96,7 +277,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
-  buttonText: { color: 'white', fontWeight: 'bold' },
+  buttonText: { 
+    color: 'white', 
+    fontWeight: 'bold' 
+  },
   infoNote: {
     fontSize: 12,
     marginTop: 8,
@@ -112,6 +296,76 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 2,
   },
-  zonaNombre: { fontWeight: 'bold', fontSize: 16 },
-  zonaEstado: { color: '#555', marginTop: 5 },
+  zonaNombre: { 
+    fontWeight: 'bold', 
+    fontSize: 16 
+  },
+  zonaEstado: { 
+    color: '#555', 
+    marginTop: 5 
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#1E40AF',
+    textAlign: 'center',
+  },
+  riskOption: {
+    padding: 15,
+    marginVertical: 5,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 10,
+  },
+  selectedRisk: {
+    backgroundColor: '#1E40AF',
+  },
+  riskText: {
+    fontSize: 16,
+  },
+  selectedRiskText: {
+    color: 'white',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  button: {
+    padding: 12,
+    borderRadius: 10,
+    width: '48%',
+    alignItems: 'center',
+  },
+  buttonCancel: {
+    backgroundColor: '#f0f0f0',
+  },
+  buttonCancelText: {
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  buttonSubmit: {
+    backgroundColor: '#1E40AF',
+  },
+  textStyle: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
 });

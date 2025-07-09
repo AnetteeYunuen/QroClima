@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 // Conectar a la base de datos
 connectDB();
@@ -18,6 +19,7 @@ app.use(express.json());
 
 // Rutas
 app.use('/api/users', userRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Ruta básica
 app.get('/', (req, res) => {
