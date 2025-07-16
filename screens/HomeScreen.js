@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput,
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../config';
+import useLocationAlert from '../hooks/useLocationAlert';
 
 const riskTypes = [
   { id: 'inundacion_leve', label: 'Inundación leve' },
@@ -12,6 +13,7 @@ const riskTypes = [
 ];
 
 export default function HomeScreen({ navigation, route }) {
+  useLocationAlert();
   const userData = route.params?.userData || { username: 'Usuario' };
   const [zona, setZona] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
