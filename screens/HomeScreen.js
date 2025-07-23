@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Modal, Alert, Linking } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Alert, Linking, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../config';
 import useLocationAlert from '../hooks/useLocationAlert';
+import MapView, { Marker, UrlTile, Circle } from 'react-native-maps';
+import { Dimensions } from 'react-native';
 
 const riskTypes = [
   { id: 'inundacion_leve', label: 'Inundación leve' },
@@ -15,17 +17,78 @@ const riskTypes = [
 export default function HomeScreen({ navigation, route }) {
   useLocationAlert();
   const userData = route.params?.userData || { username: 'Usuario' };
+  const mapRef = useRef(null);
   const [zona, setZona] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRisk, setSelectedRisk] = useState(null);
+  const [coords, setCoords] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+
+  // Pide ubicación del usuario al montar
+  useEffect(() => {
+    let locationSubscription;
+
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Activa ubicación en ajustes', [
+          { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+          { text: 'Cancelar', style: 'cancel' }
+        ]);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setCoords(loc.coords);
+      mapRef.current?.animateToRegion({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+
+      locationSubscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        (newLocation) => {
+          setCoords(newLocation.coords);
+        }
+      );
+    })();
+
+    fetchReports();
+
+    return () => {
+      if (locationSubscription) locationSubscription.remove();
+    };
+  }, []);
+
+  const fetchReports = async () => {
+    setLoadingReports(true);
+    try {
+      const resp = await fetch(API_ENDPOINTS.reports);
+      const data = await resp.json();
+      // Se espera que cada report tenga lat/lng; si no, ajustar parsing
+      setReports(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const goToProfile = () => {
+    navigation.navigate('ProfileScreen', { userData });
+  };
+
 
   const getLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert(
-          'Permiso requerido', 
+          'Permiso requerido',
           'Por favor activa los permisos de ubicación en ajustes para poder reportar',
           [
             { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
@@ -34,14 +97,14 @@ export default function HomeScreen({ navigation, route }) {
         );
         return null;
       }
-      
+
       let location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
         timeout: 15000,
       });
-      
+
       return location.coords;
-      
+
     } catch (error) {
       Alert.alert(
         'Error de ubicación',
@@ -51,46 +114,46 @@ export default function HomeScreen({ navigation, route }) {
       return null;
     }
   };
-  
+
   const handleReport = async () => {
     if (!selectedRisk) {
       Alert.alert('Error', 'Por favor selecciona un tipo de riesgo');
       return;
     }
-  
+
     try {
       const coords = await getLocation();
       if (!coords) return;
-      
+
       const reportData = {
         userId: userData._id,
         location: `${coords.latitude},${coords.longitude}`,
         riskType: selectedRisk.id,
         description: ''
       };
-      
+
       const response = await fetch(API_ENDPOINTS.reports, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportData)
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Error al enviar reporte');
       }
-      
+
       setModalVisible(false); // Cierra el modal antes de mostrar la alerta
       Alert.alert(
-        'Reporte exitoso', 
+        'Reporte exitoso',
         `Se ha registrado ${selectedRisk.label} en tu ubicación`,
         [{ text: 'OK' }]
       );
-      
+
     } catch (error) {
       Alert.alert(
-        'Error', 
-        error.message.includes('Failed to fetch') 
+        'Error',
+        error.message.includes('Failed to fetch')
           ? 'No se pudo conectar al servidor. Verifica tu conexión a internet.'
           : error.message,
         [
@@ -106,14 +169,15 @@ export default function HomeScreen({ navigation, route }) {
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Hola, {userData.username}</Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.reportButton}
             onPress={() => setModalVisible(true)}
           >
             <Ionicons name="warning" size={16} color="white" />
             <Text style={styles.reportButtonText}>Reportar</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <Ionicons name="person" size={24} color="white" onPress={goToProfile} />
+          <TouchableOpacity
             style={styles.logoutButton}
             onPress={() => navigation.navigate('Login')}
           >
@@ -131,7 +195,7 @@ export default function HomeScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>Reportar problema</Text>
-            
+
             {riskTypes.map((risk) => (
               <TouchableOpacity
                 key={risk.id}
@@ -144,7 +208,7 @@ export default function HomeScreen({ navigation, route }) {
                 <Text style={styles.riskText}>{risk.label}</Text>
               </TouchableOpacity>
             ))}
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.button, styles.buttonCancel]}
@@ -164,7 +228,50 @@ export default function HomeScreen({ navigation, route }) {
       </Modal>
 
       <ScrollView style={styles.content}>
-        <Image source={require('../assets/Mapa.png')} style={styles.bannerImage} />
+        <View style={styles.mapContainer}>
+          {coords ? (
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              initialRegion={{
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+            >
+              <UrlTile
+                urlTemplate="http://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maximumZ={19}
+              />
+              <Marker
+                coordinate={coords}
+                title="Tú estás aquí"
+                pinColor="blue"
+              />
+
+              {/* Riesgos como círculos rojos */}
+              {!loadingReports && reports.map(report => {
+                const [lat, lng] = report.location.split(',').map(Number);
+                if (isNaN(lat) || isNaN(lng)) return null;
+                return (
+                  <Circle
+                    key={report._id}
+                    center={{ latitude: lat, longitude: lng }}
+                    radius={70}
+                    strokeColor="rgba(255, 0, 0, 0.8)"
+                    fillColor="rgba(255, 0, 0, 0.3)"
+                  />
+                );
+              })}
+            </MapView>
+          ) : (
+            <View style={styles.loader}>
+              <ActivityIndicator size="large" />
+              <Text>Cargando ubicación...</Text>
+            </View>
+          )}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Registrar zona de interés</Text>
@@ -207,10 +314,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  welcomeText: { 
-    color: 'white', 
-    fontSize: 18, 
-    fontWeight: 'bold' 
+  welcomeText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold'
   },
   headerButtons: {
     flexDirection: 'row',
@@ -241,7 +348,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 5,
   },
-  logoutText: { 
+  logoutText: {
     color: 'white',
     fontSize: 14,
   },
@@ -260,9 +367,9 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     elevation: 3,
   },
-  sectionTitle: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 10,
     marginLeft: 15,
     marginTop: 10,
@@ -279,9 +386,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
-  buttonText: { 
-    color: 'white', 
-    fontWeight: 'bold' 
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold'
   },
   infoNote: {
     fontSize: 12,
@@ -298,13 +405,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 2,
   },
-  zonaNombre: { 
-    fontWeight: 'bold', 
-    fontSize: 16 
+  zonaNombre: {
+    fontWeight: 'bold',
+    fontSize: 16
   },
-  zonaEstado: { 
-    color: '#555', 
-    marginTop: 5 
+  zonaEstado: {
+    color: '#555',
+    marginTop: 5
   },
   modalOverlay: {
     flex: 1,
@@ -369,5 +476,16 @@ const styles = StyleSheet.create({
   textStyle: {
     color: 'white',
     fontWeight: 'bold',
+  },
+  mapContainer: {
+    width: '100%',
+    height: 250,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  map: {
+    flex: 1,
   },
 });

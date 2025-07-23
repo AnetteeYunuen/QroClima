@@ -1,5 +1,5 @@
 const User = require('../models/userModel');
-const bcrypt = require('bcryptjs'); // Necesitamos instalar esta dependencia
+const bcrypt = require('bcryptjs');
 
 // Registrar un nuevo usuario
 const registerUser = async (req, res) => {
@@ -82,4 +82,45 @@ const loginUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser };
+// Obtener perfil
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (user) res.json(user);
+    else res.status(404).json({ message: 'Usuario no encontrado' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Actualizar perfil
+const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (user) {
+      user.username = req.body.username || user.username;
+      user.email = req.body.email || user.email;
+      user.phone = req.body.phone || user.phone;
+
+      const updatedUser = await user.save();
+      res.json(updatedUser);
+    } else {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Eliminar usuario
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (user) res.json({ message: 'Usuario eliminado correctamente' });
+    else res.status(404).json({ message: 'Usuario no encontrado' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { registerUser, loginUser, getUserProfile, updateUserProfile, deleteUser };
