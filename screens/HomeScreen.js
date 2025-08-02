@@ -26,10 +26,7 @@ export default function HomeScreen({ navigation, route }) {
   const [loadingReports, setLoadingReports] = useState(true);
   const [ubicaciones, setUbicaciones] = useState({});
   const [tempZone, setTempZone] = useState(null);
-  const zonaParaGuardar = {
-    name: tempZone.name || tempZone.nombre || tempZone.label || '',
-    coordinates: tempZone.coordinates || [],
-  };
+  
   const zonasQueretaro = [
     {
       id: '1',
@@ -428,74 +425,70 @@ export default function HomeScreen({ navigation, route }) {
           })
         )}
       </ScrollView>
-      {/* Reemplaza el código del selector con: */}
-      <View style={styles.cardContainer}>
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Seleccionar zona de interés</Text>
-          <Picker
-            selectedValue={zona}
-            onValueChange={(itemValue, itemIndex) => {
-              if (itemValue) {
-                setZona(itemValue);
-                const selectedZone = zonasQueretaro.find(z => z.name === itemValue);
-                if (selectedZone) {
-                  setTempZone(selectedZone);
+       {/* Reemplaza el código del selector con: */}
+        <View style={styles.cardContainer}>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Seleccionar zona de interés</Text>
+            <Picker
+              selectedValue={zona}
+              onValueChange={(itemValue, itemIndex) => {
+                if (itemValue) {
+                  setZona(itemValue);
+                  const selectedZone = zonasQueretaro.find(z => z.name === itemValue);
+                  if (selectedZone) {
+                    setTempZone(selectedZone);
+                  }
                 }
-              }
-            }}
-            style={styles.picker}
-            itemStyle={styles.pickerItem}
-          >
-            <Picker.Item label="Selecciona una zona" value="" />
-            {zonasQueretaro.map((zona) => (
-              <Picker.Item key={zona.id} label={zona.name} value={zona.name} />
-            ))}
-          </Picker>
+              }}
+              style={styles.picker}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="Selecciona una zona" value="" />
+              {zonasQueretaro.map((zona) => (
+                <Picker.Item key={zona.id} label={zona.name} value={zona.name} />
+              ))}
+            </Picker>
 
-          {/* Botón siempre visible con funcionalidad para guardar zona */}
+            {/* Botón siempre visible con funcionalidad para guardar zona */}
+            
+           <TouchableOpacity
+  style={[styles.button, { backgroundColor: '#4CAF50', marginTop: 10 }]}
+  onPress={async () => {
+    if (!tempZone) {
+      Alert.alert('Selecciona una zona', 'Por favor selecciona una zona antes de guardar');
+      return;
+    }
+    try {
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#4CAF50', marginTop: 10 }]}
-            onPress={async () => {
-              if (!tempZone) {
-                Alert.alert('Selecciona una zona', 'Por favor selecciona una zona antes de guardar');
-                return;
-              }
-              try {
-                const zonaParaGuardar = {
-                  name: tempZone.name || tempZone.nombre || tempZone.label || '',
-                  coordinates: tempZone.coordinates || [],
-                };
+      const resp = await fetch(API_ENDPOINTS.zonasInteres, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userData._id,
+          zona: zonaParaGuardar,
+        }),
+      });
 
-                const resp = await fetch(API_ENDPOINTS.zonasInteres, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId: userData._id,
-                    zona: zonaParaGuardar,
-                  }),
-                });
+      if (!resp.ok) {
+        const errorData = await resp.json();
+        throw new Error(errorData.message || 'No se pudo guardar la zona');
+      }
 
-                if (!resp.ok) {
-                  const errorData = await resp.json();
-                  throw new Error(errorData.message || 'No se pudo guardar la zona');
-                }
+      Alert.alert('Zona guardada', 'Tu zona de interés ha sido registrada correctamente');
 
-                Alert.alert('Zona guardada', 'Tu zona de interés ha sido registrada correctamente');
-
-                setTempZone(null);
-                setZona('');
-              } catch (error) {
-                Alert.alert('Error', error.message || 'Ocurrió un error al guardar la zona');
-              }
-            }}
-          >
-            <Text style={styles.buttonText}>Guardar zona</Text>
-          </TouchableOpacity>
+      setTempZone(null);
+      setZona('');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Ocurrió un error al guardar la zona');
+    }
+  }}
+>
+  <Text style={styles.buttonText}>Guardar zona</Text>
+</TouchableOpacity>
+          </View>
         </View>
-      </View>
     </View>
-
+    
   );
 }
 
