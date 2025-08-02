@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Alert, Linking, ActivityIndicator } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { API_ENDPOINTS } from '../config';
 import useLocationAlert from '../hooks/useLocationAlert';
-import MapView, { Marker, UrlTile, Circle } from 'react-native-maps';
-import { Dimensions } from 'react-native';
+import MapView, { Marker, Circle, Polygon } from 'react-native-maps';
 
 const riskTypes = [
   { id: 'inundacion_leve', label: 'Inundación leve' },
@@ -24,10 +24,64 @@ export default function HomeScreen({ navigation, route }) {
   const [coords, setCoords] = useState(null);
   const [reports, setReports] = useState([]);
   const [loadingReports, setLoadingReports] = useState(true);
+  const [ubicaciones, setUbicaciones] = useState({});
+  const [tempZone, setTempZone] = useState(null);
+  const zonaParaGuardar = {
+    name: tempZone.name || tempZone.nombre || tempZone.label || '',
+    coordinates: tempZone.coordinates || [],
+  };
+  const zonasQueretaro = [
+    {
+      id: '1',
+      name: 'Pie de la Cuesta',
+      coordinates: [
+        { latitude: 20.619824012933748, longitude: -100.42239164063324 },
+        { latitude: 20.619824012933748, longitude: -100.38184007933204 },
+        { latitude: 20.666874673239292, longitude: -100.38184007933204 },
+        { latitude: 20.666874673239292, longitude: -100.42239164063324 },
+        { latitude: 20.619824012933748, longitude: -100.42239164063324 }
+      ],
+    },
+    {
+      id: '2',
+      name: 'Centro',
+      coordinates: [
+        { latitude: 20.580697047313393, longitude: -100.37129591223761 },
+        { latitude: 20.601634175367963, longitude: -100.37129591223761 },
+        { latitude: 20.601634175367963, longitude: -100.41546964501282 },
+        { latitude: 20.580697047313393, longitude: -100.41546964501282 },
+        { latitude: 20.580697047313393, longitude: -100.37129591223761 } // cierre del polígono
+      ],
+    },
+    {
+      id: '3',
+      name: 'Juriquilla',
+      coordinates: [
+        { latitude: 20.688522774825472, longitude: -100.43739647549047 },
+        { latitude: 20.728954217788996, longitude: -100.43739647549047 },
+        { latitude: 20.728954217788996, longitude: -100.4752514456908 },
+        { latitude: 20.688522774825472, longitude: -100.4752514456908 },
+        { latitude: 20.688522774825472, longitude: -100.43739647549047 }
+      ],
+    },
+    {
+      id: '4',
+      name: 'El Refugio',
+      coordinates: [
+        { latitude: 20.633735800083528, longitude: -100.36441275460494 },
+        { latitude: 20.633735800083528, longitude: -100.34388163159771 },
+        { latitude: 20.664753806168406, longitude: -100.34388163159771 },
+        { latitude: 20.664753806168406, longitude: -100.36441275460494 },
+        { latitude: 20.633735800083528, longitude: -100.36441275460494 }
+      ],
+    },
+  ];
+
 
   // Pide ubicación del usuario al montar
   useEffect(() => {
     let locationSubscription;
+    let intervalId;
 
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -41,6 +95,7 @@ export default function HomeScreen({ navigation, route }) {
 
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setCoords(loc.coords);
+      // Solo se anima una vez
       mapRef.current?.animateToRegion({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -48,28 +103,70 @@ export default function HomeScreen({ navigation, route }) {
         longitudeDelta: 0.01,
       });
 
+      // Suscripción para actualizar coordenadas sin animar
       locationSubscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
         (newLocation) => {
-          setCoords(newLocation.coords);
+          setCoords(newLocation.coords); // Se actualiza en silencio
         }
       );
     })();
 
-    fetchReports();
+    // Cada 10 segundos refresca los reportes (sin animaciones)
+    intervalId = setInterval(fetchReports, 10000);
 
     return () => {
       if (locationSubscription) locationSubscription.remove();
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
+
+  const obtenerDireccion = async (lat, lng, id) => {
+    try {
+      const [direccion] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+
+      if (direccion) {
+        const nombre = `${direccion.name || ''} ${direccion.street || ''}, ${direccion.city || direccion.region || ''}`;
+        setUbicaciones(prev => ({ ...prev, [id]: nombre.trim() }));
+      }
+    } catch (error) {
+      console.error("Error obteniendo dirección:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!loadingReports && reports.length > 0) {
+      reports.forEach(report => {
+        if (!ubicaciones[report._id]) {
+          const [lat, lng] = report.location.split(',').map(Number);
+          obtenerDireccion(lat, lng, report._id);
+        }
+      });
+    }
+  }, [loadingReports, reports]);
+
+  const getRiskColor = (type) => {
+    switch (type) {
+      case 'inundacion_severa': return 'rgba(255, 0, 0, 0.4)';
+      case 'inundacion_leve': return 'rgba(255, 165, 0, 0.4)';
+      case 'lluvia_intensa': return 'rgba(255, 255, 0, 0.4)';
+      default: return 'rgba(200, 200, 200, 0.3)';
+    }
+  };
+
+  const areReportsEqual = (a, b) => {
+    if (a.length !== b.length) return false;
+    return a.every((rep, i) => rep._id === b[i]._id);
+  };
 
   const fetchReports = async () => {
     setLoadingReports(true);
     try {
       const resp = await fetch(API_ENDPOINTS.reports);
       const data = await resp.json();
-      // Se espera que cada report tenga lat/lng; si no, ajustar parsing
-      setReports(data);
+      if (!areReportsEqual(data, reports)) {
+        setReports(data); // solo actualiza si hay cambios
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -227,7 +324,8 @@ export default function HomeScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ flexGrow: 1, paddingBottom: 30 }}>
+
         <View style={styles.mapContainer}>
           {coords ? (
             <MapView
@@ -239,28 +337,45 @@ export default function HomeScreen({ navigation, route }) {
                 latitudeDelta: 0.01,
                 longitudeDelta: 0.01,
               }}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
             >
-              <UrlTile
-                urlTemplate="http://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-              />
-              <Marker
-                coordinate={coords}
-                title="Tú estás aquí"
-                pinColor="blue"
-              />
+
+              {/* Mostrar polígono temporal de la zona seleccionada */}
+              {tempZone && tempZone.coordinates.length >= 3 && (
+                <Polygon
+                  coordinates={tempZone.coordinates}
+                  strokeColor="#FF0000"
+                  fillColor="transparent"
+                  strokeWidth={2}
+                  lineDashPattern={[10, 5]}
+                />
+              )}
 
               {/* Riesgos como círculos rojos */}
-              {!loadingReports && reports.map(report => {
+              {reports.map((report) => {
                 const [lat, lng] = report.location.split(',').map(Number);
                 if (isNaN(lat) || isNaN(lng)) return null;
+
+                if (report.riskType === 'accidente') {
+                  return (
+                    <Marker
+                      key={report._id}
+                      coordinate={{ latitude: lat, longitude: lng }}
+                      title="Accidente"
+                    >
+                      <Ionicons name="warning" size={30} color="orange" />
+                    </Marker>
+                  );
+                }
+
                 return (
                   <Circle
                     key={report._id}
                     center={{ latitude: lat, longitude: lng }}
                     radius={70}
-                    strokeColor="rgba(255, 0, 0, 0.8)"
-                    fillColor="rgba(255, 0, 0, 0.3)"
+                    strokeColor={getRiskColor(report.riskType)}
+                    fillColor={getRiskColor(report.riskType)}
                   />
                 );
               })}
@@ -273,34 +388,114 @@ export default function HomeScreen({ navigation, route }) {
           )}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Registrar zona de interés</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Nombre de la zona (Ej. Centro Histórico)"
-            value={zona}
-            onChangeText={setZona}
-          />
-          <TouchableOpacity style={styles.buttonDisabled}>
-            <Text style={styles.buttonText}>Guardar zona</Text>
-          </TouchableOpacity>
-          <Text style={styles.infoNote}>* Funcionalidad de ejemplo sin conexión real</Text>
-        </View>
-
         <Text style={styles.sectionTitle}>Zonas reportadas</Text>
 
-        {[
-          { nombre: 'Centro Histórico', estado: 'Inundación leve', color: '#facc15' },
-          { nombre: 'Boulevard Bernardo Quintana', estado: 'Lluvia intensa', color: '#f87171' },
-          { nombre: 'Av. 5 de Febrero', estado: 'Libre de afectaciones', color: '#4ade80' },
-        ].map((zona, index) => (
-          <View key={index} style={[styles.reportCard, { borderLeftColor: zona.color }]}>
-            <Text style={styles.zonaNombre}>{zona.nombre}</Text>
-            <Text style={styles.zonaEstado}>{zona.estado}</Text>
-          </View>
-        ))}
+        {loadingReports ? (
+          <ActivityIndicator size="small" color="#1E40AF" style={{ marginTop: 10 }} />
+        ) : reports.length === 0 ? (
+          <Text style={{ marginLeft: 15, color: '#999' }}>No hay reportes disponibles.</Text>
+        ) : (
+          reports.map((report, index) => {
+            const [lat, lng] = report.location.split(',').map(Number);
+            const tipo = riskTypes.find(r => r.id === report.riskType)?.label || 'Desconocido';
+
+            let color = '#d1d5db'; // gris claro por defecto
+            switch (report.riskType) {
+              case 'inundacion_severa': color = '#ef4444'; break;
+              case 'inundacion_leve': color = '#f59e0b'; break;
+              case 'lluvia_intensa': color = '#eab308'; break;
+              case 'accidente': color = '#f97316'; break;
+              default: color = '#a3a3a3';
+            }
+
+            return (
+              <TouchableOpacity
+                key={report._id || index}
+                style={[styles.reportCard, { borderLeftColor: color }]}
+                onPress={() => {
+                  mapRef.current?.animateToRegion({
+                    latitude: lat,
+                    longitude: lng,
+                    latitudeDelta: 0.005,
+                    longitudeDelta: 0.005,
+                  }, 1000);
+                }}
+              >
+                <Text style={styles.zonaNombre}>{ubicaciones[report._id] || 'Zona reportada'}</Text>
+                <Text style={styles.zonaEstado}>{tipo}</Text>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
+      {/* Reemplaza el código del selector con: */}
+      <View style={styles.cardContainer}>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Seleccionar zona de interés</Text>
+          <Picker
+            selectedValue={zona}
+            onValueChange={(itemValue, itemIndex) => {
+              if (itemValue) {
+                setZona(itemValue);
+                const selectedZone = zonasQueretaro.find(z => z.name === itemValue);
+                if (selectedZone) {
+                  setTempZone(selectedZone);
+                }
+              }
+            }}
+            style={styles.picker}
+            itemStyle={styles.pickerItem}
+          >
+            <Picker.Item label="Selecciona una zona" value="" />
+            {zonasQueretaro.map((zona) => (
+              <Picker.Item key={zona.id} label={zona.name} value={zona.name} />
+            ))}
+          </Picker>
+
+          {/* Botón siempre visible con funcionalidad para guardar zona */}
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#4CAF50', marginTop: 10 }]}
+            onPress={async () => {
+              if (!tempZone) {
+                Alert.alert('Selecciona una zona', 'Por favor selecciona una zona antes de guardar');
+                return;
+              }
+              try {
+                const zonaParaGuardar = {
+                  name: tempZone.name || tempZone.nombre || tempZone.label || '',
+                  coordinates: tempZone.coordinates || [],
+                };
+
+                const resp = await fetch(API_ENDPOINTS.zonasInteres, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    userId: userData._id,
+                    zona: zonaParaGuardar,
+                  }),
+                });
+
+                if (!resp.ok) {
+                  const errorData = await resp.json();
+                  throw new Error(errorData.message || 'No se pudo guardar la zona');
+                }
+
+                Alert.alert('Zona guardada', 'Tu zona de interés ha sido registrada correctamente');
+
+                setTempZone(null);
+                setZona('');
+              } catch (error) {
+                Alert.alert('Error', error.message || 'Ocurrió un error al guardar la zona');
+              }
+            }}
+          >
+            <Text style={styles.buttonText}>Guardar zona</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
+
   );
 }
 
@@ -385,10 +580,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
+    marginHorizontal: 15,
+    marginTop: 10
   },
   buttonText: {
     color: 'white',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    fontSize: 16
   },
   infoNote: {
     fontSize: 12,
@@ -488,4 +686,16 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  picker: {
+    width: '100%',
+    marginVertical: 10,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#333',
+  },
 });
+

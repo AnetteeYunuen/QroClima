@@ -16,6 +16,17 @@ const userSchema = mongoose.Schema(
       type: String,
       required: true,
     },
+    zonasDeInteres: [
+      {
+        name: String,
+        coordinates: [
+          {
+            latitude: Number,
+            longitude: Number
+          }
+        ]
+      }
+    ]
   },
   {
     timestamps: true,
