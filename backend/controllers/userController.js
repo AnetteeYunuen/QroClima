@@ -123,7 +123,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-exports.addZonaDeInteres = async (req, res) => {
+const addZonaDeInteres = async (req, res) => {
   const { userId, zona } = req.body;
 
   try {
@@ -140,4 +140,4 @@ exports.addZonaDeInteres = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, getUserProfile, updateUserProfile, deleteUser };
+module.exports = { registerUser, loginUser, getUserProfile, updateUserProfile, deleteUser, addZonaDeInteres };

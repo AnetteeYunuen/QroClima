@@ -26,7 +26,6 @@ export default function HomeScreen({ navigation, route }) {
   const [loadingReports, setLoadingReports] = useState(true);
   const [ubicaciones, setUbicaciones] = useState({});
   const [tempZone, setTempZone] = useState(null);
-  
   const zonasQueretaro = [
     {
       id: '1',
@@ -465,7 +464,6 @@ export default function HomeScreen({ navigation, route }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userData._id,
-          zona: zonaParaGuardar,
         }),
       });
 
