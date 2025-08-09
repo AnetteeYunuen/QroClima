@@ -458,12 +458,14 @@ export default function HomeScreen({ navigation, route }) {
       return;
     }
     try {
-
+      const aprueba = tempZone.name;
+      //console.log(aprueba)
       const resp = await fetch(API_ENDPOINTS.zonasInteres, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userData._id,
+          zona: aprueba,
         }),
       });
 

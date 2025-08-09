@@ -124,19 +124,46 @@ const deleteUser = async (req, res) => {
 };
 
 const addZonaDeInteres = async (req, res) => {
+  console.log("addZonaDeInteres llamado, req.body:", req.body);
   const { userId, zona } = req.body;
 
   try {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-    user.zonasDeInteres.push(zona);
-    await user.save();
+    if (!Array.isArray(user.zonasDeInteres)) {
+      user.zonasDeInteres = [];
+    }
 
-    res.status(200).json({ message: 'Zona de interés guardada correctamente', zona });
+    const zonaExistente = user.zonasDeInteres.find(
+      z => z.name.toLowerCase() === zona.toLowerCase()
+    );
+
+    if (zonaExistente) {
+      return res.status(400).json({ message: 'Esta zona ya está registrada en tus intereses' });
+    }
+
+    const zonaObj = {
+      name: zona,
+      coordinates: [
+        {
+          latitude: 20.688522774825472,
+          longitude: -100.43739647549047
+        }
+      ],
+    };
+
+    console.log("Zona a agregar:", zonaObj);
+    user.zonasDeInteres.push(zonaObj);
+
+    console.log("Intentando guardar usuario...");
+    await user.save();
+    console.log("Usuario guardado correctamente");
+
+    res.status(200).json({ message: 'Zona de interés guardada correctamente', zona: zonaObj });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al guardar zona de interés' });
+    console.error("Error interno al guardar zona:", error);
+    res.status(500).json({ message: error.message, stack: error.stack });
   }
 };
 

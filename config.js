@@ -2,7 +2,7 @@
 
 // Cambia esta IP por la de tu computadora cuando sea necesario
 // en cmd ejecuta ipconfig y busca la ip de tu red local
-const IP = '10.145.167.185'; // Reemplaza con tu número real
+const IP = '192.168.100.48'; // Reemplaza con tu número real
 
 // URLs de la API
 const API_URL = `http://${IP}:5000`;
@@ -13,7 +13,7 @@ const API_ENDPOINTS = {
   register: `${API_URL}/api/users/register`,
   reports: `${API_URL}/api/reports`,
   users: `${API_URL}/api/users`,
-  zonasInteres: `${API_URL}/api/zona-interes`,
+  zonasInteres: `${API_URL}/api/users/zona-interes`,
   // Agrega más endpoints
 };
 
