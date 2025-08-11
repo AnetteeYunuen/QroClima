@@ -13,7 +13,7 @@ import useLocationAlert from './hooks/useLocationAlert';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  useLocationAlert();
+ 
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
